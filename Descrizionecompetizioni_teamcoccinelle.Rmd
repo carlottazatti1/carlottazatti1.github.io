@@ -1,0 +1,237 @@
+---
+title: "DM competitions"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+TEAM NAME: coccinelle 
+
+
+TEAM MEMBERS: Carlotta Zatti (carlotta zatti), Federica Zattini (FZattini)
+
+
+
+
+## Online dating
+
+
+L'obiettivo dell'analisi è prevedere se la professione di una persona è STEM (science, technology, engineering, and math) o no. Il metodo usato per la valutazione della performance dei modelli è l'AUC (Area under the ROC curve). 
+Il training set include 6000 utenti, di cui 1095 sono nell'ambito STEM. Si riscontra un problema limitato di class imbalance: il 18.25% di profili sono STEM. Il test set è composto da 4000 osservazioni.
+
+I dati originali contengono variabili di diversa natura:
+
+* 1 numerica (`essay_length`), 3 interi (`height`,`age`,`last_online`), 17 categoriali, 87 dummies
+* Il numero delle categorie spazia da 51 (`where_town`) a 3 (`orientation`)
+* I missing sono presenti nelle variabili categoriali come modalità: es. `drinks` ha livello `drinks_missing`
+* In alcuni casi delle categorie presenti nel test set non sono incluse nel training set, per questo analizziamo il dataset come combinazione dei due.
+
+A seguito delle analisi le variabili da 108 sono diventate 95, così suddivise:
+
+* 1 numerica (`essay_length`), 2 interi (`height`,`age`), 22 categoriali, 70 dummies
+
+Dato il grande numero di variabili categoriali, consideriamo gli alberi di classificazione perché: 
+
+* sanno gestire predittori sia numerici che categoriali
+* possono usare le variabili categoriali nella loro forma naturale (senza conversioni in dummy)
+* sanno gestire i valori mancanti
+* feature selection intrinseca nel processo così come le interazioni tra predittori
+
+Il modello utilizzato per la previsione finale è il Random Forest per stabilizzare gli alberi.
+
+
+
+*Summary of the modelling process:*
+
+
+
+1. *Preprocessing* <br>
+
+Nelle variabili `age`, `height` e `essay_length` sono presenti degli outliers. Per questo motivo si è deciso di sostituire dei valori in corrispondenza di 4 osservazioni:
+
+* 1258: `height`pari a 26
+* 3184: `age` 95 e `height` 25 
+* 5201: `height` pari a 4
+* 5676: `height` pari a 3
+
+Per quanto riguarda le osservazioni 1258, 5201 e 5676, dove i valori anomali sono tutti in corrispondenza di `height`, si è deciso di condizionarsi alla variabile `age` e calcolare la mediana, misura più robusta data la distribuzione asimmetrica di `height`.
+Per sistemare l'osservazione 3184 si è scelto di condizionarsi alla variabile `body_type` ed `education` al fine di correggere i valori `height` e `age`.
+
+2. *Missing values* <br>
+
+I missing sono presenti solo nelle variabili categoriali sottoforma di modalità e per questo motivo sono stati trattati come tali.
+
+3. *Feature engineering* <br>
+
+* Le modalità della variabile `education` sono diminuite da 33 a 17 per compattare le aree di interesse degli utenti
+* Il predittore `income` è passato inizialmente da categoriale a numerico e successivamente è tornato categoriale con 3 modalità: `alto`, `basso` e `mancante`. La ripartizione è definita in modo da suddividere le categorie `alto` e `basso` in intervalli di ampiezza quasi simile (da 20000 fino a 50000 `basso`, da 50000 fino a 1000000 `alto`), mentre `mancante` individua tutti i missing.
+* La variabile `last_online`  da intera è diventata categoriale con 2 modalità: `frequenti` e `meno_frequenti`. La suddivisione è generata sulla base della mediana, così da separare equamente gli utenti.
+* Le categorie del predittore `smokes` sono diminuite da 6 a 3: `fumo`, `non fumo` e `missing`. 
+* Le modalità della variabile `status` sono diminuite da 5 a 3: `single`, `occupato` e `missing`.
+* Le dummies `cpp`, `cpp_fluently`, `cpp_okay` e `cpp_poorly` sono accorpate sotto un'unica variabile categoriale `cono_cpp` con 3 modalità `poca`,`buona`,`fluente` per indicare la conoscenza del programma cpp.
+* Le dummies `lisp`, `lisp_fluently`, `lisp_okay` e `lisp_poorly` sono accorpate sotto un'unica variabile categoriale `cono_lisp` con 3 modalità: `poca`,`buona`,`fluente` per indicare la conoscenza del programma lisp.
+* Per creare un'interazione tra i due programmi cpp e lisp si è creata una variabile `cpp_and_lisp` con 3 categorie: `entrambi`, `almeno uno` e `nessuno`. Questa ripartizione serve per stabilire se gli utenti conoscono entrambi i programmi, ne conoscono almeno uno dei due o nessuno. 
+* Le dummies `asian`, `black`, `indian`, `ispanic_latin`, `middle-eastern`, `native_american`, `other`, `pacific_islander`e `white` sono accorpate sotto un'unica variabile categoriale `etnie` con 9 modalità. 
+
+4. *Feature selection* <br>
+
+Feature selection implementata automaticamente all'interno degli alberi.
+
+5. *Final model* <br>
+
+Il modello finale è un RandomForest ed è implementato dalla funzione train della libreria `caret` con `method = "rf"`, `metric = "ROC"` e `trControl = ctrl`. Ctrl è il risultato della funzione `trainControl` con `method = "cv"`, `number = 10`, `classProbs = TRUE`, `summaryFunction = twoClassSummary`. 
+Dato che la risposta ha un problema di class imbalance, si è deciso di utilizzare un campionamento `down`. Questo metodo consiste nell'escludere delle righe nel training per equilibrare le classi.
+
+6. *Model tuning and evaluation* <br>
+
+Si è scelto il parametro `m` attraverso K-fold Cross Validation con K pari a 10. È stato selezionato m=2 poiché ha associato il valore più alto della ROC.
+
+7. *R packages* <br>
+
+`caret`
+
+8. *References* <br>
+
+Il libro [Feature Engineering and Selection](http://www.feat.engineering/index.html). In particolare le sezioni: 5 per la codifica delle variabili categoriali, 8.2 e 8.4 per i missing.
+
+
+```{r startup, include = FALSE, message = FALSE, warning = FALSE}
+
+knitr::opts_chunk$set(echo = T, eval=F, message=F, warning=F, error=F, comment = NA, cache=F, R.options=list(width=220))
+
+```
+
+
+
+**R code to reproduce the last submission**
+
+
+
+```{r}
+rm(list=ls())
+library(caret)
+combi=read.csv("H:/CompetizioniDM/combi.csv")
+n = 6000
+m = 4000
+train = combi[1:n,]
+test = combi[(n+1):(n+m),]
+ctrl=trainControl(method = "cv",
+                  number = 10,
+                  classProbs = TRUE,
+                  summaryFunction = twoClassSummary)
+ctrl$sampling <- "down"
+set.seed(123)
+fit.down<- train(Class ~ ., data = train, 
+                      method = "rf",
+                      metric = "ROC",
+                      trControl = ctrl)
+phat.down = predict(fit.down, newdata=test,  type = "prob")[,"stem",drop=F]
+head(phat.down)
+```
+
+
+
+## Miss Congeniality
+
+L'obiettivo dell'analisi è prevedere la valutazione (1-5) degli utenti riferita al film Miss Congeniality.
+Il metodo usato per la valutazione della performance dei modelli è RMSE (root mean square error). 
+Il training set include 10000 utenti, mentre il test set ne contiene 2931.
+
+I dati originali sono suddivisi su tre file diversi e contengono informazioni riguardo a 99 film:
+
+* i punteggi dati ad ogni film sono interi su scala 1-5
+* la data della valutazione corrisponde al numero di giorni dal primo gennaio 1997
+* l'anno di uscita del film. 
+
+I primi 14 film non hanno valori mancanti, mentre i restanti 85 ne possiedono diversi: i missing rappresentano il 15.4% dell'intero dataset.
+
+A seguito delle analisi le variabili sono diventate 189:
+
+* 161 numeriche , 28 dummies
+
+Data la distribuzione della variabile risposta si è pensato di analizzarla con la regressione, in particolare per le previsioni finali è stata utilizzata la regressione ridge per tenere sotto controllo la variabilità presente nei dati. 
+
+
+*Summary of the modelling process:*
+
+
+1. *Preprocessing* <br>
+
+Le analisi sono partite dal dataset riguardante i punteggi degli utenti.
+Si è proceduto eliminando tre variabili (`Lord.of.the.Rings..The.Return.of.the.King`,`Lord.of.the.Rings..The.Two.Towers`, `Kill.Bill..Vol..1`) le prime due molto correlate con `Lord.of.the.Rings..The.Fellowship.of.the.Ring` e la terza con `Kill.Bill..Vol..2`.
+La scelta di mantenere le ultime due sopra citate è fatta tenendo in considerazione il legame di ciascuna con la risposta `Miss.Congeniality`. 
+
+
+2. *Missing values* <br>
+
+Data la ampia presenza di valori mancanti all'interno del dataset, per la loro gestione si è pensato di costruire un modello lineare semplice.
+La risposta è rappresentata dalla media delle valutazioni dell'utente (effetto individuale), il predittore corrisponde alla valutazione del film, per il quale l'utente in analisi registra valore mancante, degli utenti (effetto film). 
+Come dati di train si sono usati i valori per i quali la valutazione al film considerato era presente, mentre per il test le osservazioni per cui il dato era mancante. 
+In questo modo le previsioni ottenute hanno sostituito i missing, si è fatto ciò per ciascun utente e in corrispondenza di ciascun film (tra gli 85). 
+
+3. *Feature engineering* <br>
+
+* Si sono aggiunte ai dati riguardanti i punteggi di tutti i film le variabili dummies (solo per i film tra gli 85) per tener traccia dei valori mancanti. Esse assumono valore 1 in assenza di NA e 0 altrimenti. 
+* Per dar maggior peso ai veri punteggi dati dagli utenti, sono state inserite le interazioni tra film e dummies.  
+* Altre variabili create sono:
+
+     - media, mediana, moda e varianza relative ai dati originali (non sono stati considerati i missing values)
+     - percentuale di valutazioni date lo stesso giorno di Miss Congeniality  (`perc_Miss`)
+     - percentuale di missing per utente (`perc_missing`)
+     - numero di valutazioni pari a 1, 2, 3, 4, 5 (`val_uno`,`val_due`,`val_tre`,`val_quattro`,`val_cinque`)
+     - media delle valutazioni per utente pesata per le percentuali di missing associate ad ogni film (`media_pesatamissing`)
+     - differenza al quadrato della media delle valutazioni meno la media calcolata senza considerare i valori mancanti (`differenza_med2`)
+     - interazioni (`moda*perc_missing`,`differenza_med2*perc_missing`,`var_utenti_narmT*perc_missing`)
+
+
+4. *Feature selection* <br>
+
+Dato il legame tra dummies e interazioni dummies-film si è pensato di mantenere una delle due informazioni per ogni film sempre considerando quella maggiormente correlata con la risposta. 
+Successivamente si sono escluse dall'analisi altre quattro informazioni  (`Saving.Private.Ryan`,`Memento`,`Napoleon.Dynamite`,`S.W.A.T..dummy`) poiché hanno correlazione con la risposta inferiore a 0.018. 
+
+
+5. *Final model* <br>
+
+Regressione ridge ottenuta con la funzione `glmnet` ponendo valore alfa pari a 0. 
+
+
+6. *Model tuning and evaluation* <br>
+
+Si è scelto il parametro lambda di shrinkage attraverso K-fold Cross Validation con K pari a 5. 
+
+
+7. *R packages* <br>
+
+`glmnet`
+
+
+
+8. *References* <br>
+
+Il libro [Feature Engineering and Selection](http://www.feat.engineering/index.html). In particolare le sezioni 8.2 e 8.4 per la gestione dei dati missing.
+
+**R code to reproduce the last submission**
+
+
+
+```{r}
+rm(list=ls())
+library(glmnet)
+punteggi=read.csv("H:/CompetizioniDM/punteggi.txt", sep="")
+n=10000
+m=2931
+train=punteggi[1:n,]
+test=punteggi[(n+1):(n+m),]
+X = as.matrix(train[,-94]) # 94 variabile risposta 
+X.star=as.matrix(test[,-94])
+fit.ridge<- glmnet(X, train$Miss.Congeniality, alpha=0)
+#K-fold Cross Validation per lambda
+set.seed(123)
+K <- 5
+fit.cv <-cv.glmnet(X,train$Miss.Congeniality, alpha=0, nfolds = K, grouped=FALSE) 
+yhat.ridge = predict(fit.ridge, s=fit.cv$lambda.min, newx=X.star, exact=TRUE)
+head(yhat.ridge)
+```
